@@ -291,7 +291,7 @@ class MyWindow(QMainWindow):
         self.ui.stackedWidget_2.setCurrentIndex(3)
 
     def Load(self):
-        if self.ui.stackedWidget.currentIndex() == 1:
+        if self.ui.stackedWidget.currentIndex() == 1 or self.ui.stackedWidget.currentIndex() == 2:
             #Load filee, Plot, Convert Every track to frequency, get frequency ranges, update plot
             filename = QtWidgets.QFileDialog.getOpenFileName()
             path = filename[0]
@@ -376,7 +376,6 @@ class MyWindow(QMainWindow):
 
     def UpdateComposed(self):
         data, fs = a2n.audio_from_file("ComposedSound.mp3")
-        
         self.input = PlotLine()
         self.input.name = "ComposedSound"
         self.input.fs=fs
@@ -423,7 +422,7 @@ class MyWindow(QMainWindow):
             self.plotWidget1.setXRange(xmin+0.1,xmax+0.1,padding=0)
             self.plotWidget4.setXRange(xmin+0.1,xmax+0.1,padding=0)
         
-        elif self.ui.stackedWidget.currentIndex() == 1:
+        elif self.ui.stackedWidget.currentIndex() == 1 or self.ui.stackedWidget.currentIndex() == 2 :
            self.plotWidget1.setXRange((self.timePos+pygame.mixer.music.get_pos())/1000, ((self.timePos+pygame.mixer.music.get_pos())/1000)+10, padding=0)
            self.plotWidget4.setXRange((self.timePos+pygame.mixer.music.get_pos())/1000, ((self.timePos+pygame.mixer.music.get_pos())/1000)+10, padding=0)
         #self.timePos = pygame.mixer.get_pos()/1000
@@ -461,6 +460,56 @@ class MyWindow(QMainWindow):
     def update_frequency_components(self):
         if self.ui.stackedWidget.currentIndex() == 1:
             pass
+        if self.ui.stackedWidget.currentIndex() == 2:
+            # Compute the Fourier Transform for the original signal
+            original_spectrum = np.fft.fft(self.input.sound_axis)
+            # Calculate the frequency resolution and create the frequency axis
+            time_step = 1.0 / self.input.fs
+            frequency_axis = np.fft.fftfreq(len(self.input.sound_axis), time_step)
+
+            # Find the positive frequencies (ignore negative frequencies)
+            positive_freq_indices = np.where(frequency_axis > 0)
+            
+            # Get the minimum and maximum frequencies
+            signal_min_freq = frequency_axis[positive_freq_indices].min()
+            signal_max_freq = frequency_axis[positive_freq_indices].max()
+
+            animalsFrequency_Ranges =[(10,1400),(14450,2500),(2550,4000),(8000,11000)]
+
+            animal_Sliders = [
+                self.animalsSlider1, self.animalsSlider2, self.animalsSlider3, self.animalsSlider4
+            ]
+
+            # Initialize an array for the modified spectrum
+            modified_spectrum = np.copy(original_spectrum)
+
+            for slider, (freq_min, freq_max) in zip(animal_Sliders, animalsFrequency_Ranges):
+                amplification_factor = slider.value() / 10.0  # Normalize the slider value to [0, 1]
+                amplitude = amplification_factor * 2  # Square the amplitude for increased effect
+
+                # Find the indices of the frequency range
+                indices = np.where((frequency_axis >= freq_min) & (frequency_axis <= freq_max))
+
+                # Adjust the magnitude in the frequency domain
+                modified_spectrum[indices] *= amplitude
+
+            self.plotFrequencyDomain(frequency_axis,modified_spectrum,positive_freq_indices)
+
+            # Compute the inverse Fourier Transform to get the modified signal
+            modified_signal = np.fft.ifft(modified_spectrum).real
+
+            # Update the plot with the modified signal in the time domain
+            self.plotWidget4.clear()
+            self.input.data_line = self.plotWidget4.plot(
+                self.input.time_axis, modified_signal, name=self.input.name
+            )
+            # self.generate_spectrogram(self.input.time_axis,modified_signal,self.input.fs,2)
+            # self.plotWidget4.setXRange(0, self.input.time_axis.max())
+            self.plotWidget3.setLabel('left', 'Amplitude')
+            self.plotWidget3.setLabel('bottom', 'Frequency (Hz)')
+        
+            self.plotWidget4.setMouseEnabled(x=False, y=False)
+            
         elif self.ui.stackedWidget.currentIndex() == 0:
             # Compute the Fourier Transform for the original signal
             original_spectrum = np.fft.fft(self.input.sound_axis)
